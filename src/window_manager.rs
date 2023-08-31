@@ -1,7 +1,7 @@
 use std::ffi::{c_int, c_uint, c_ulong};
-use x11::keysym::{XK_e, XK_Return};
-use x11::xlib::{ControlMask, CWBorderWidth, CWHeight, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XCreateWindowEvent, XDefaultScreen, XDestroyWindowEvent, XEvent, XGetWindowAttributes, XGrabKey, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XSelectInput, XSetWindowBorder, XUnmapEvent, XWindowAttributes, XWindowChanges};
-use crate::action::Action;
+use x11::keysym::{XK_e, XK_Left, XK_q, XK_Return, XK_Right};
+use x11::xlib::{ControlMask, CurrentTime, CWBorderWidth, CWHeight, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, RevertToNone, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XCreateWindowEvent, XDefaultScreen, XDestroyWindowEvent, XEvent, XGetWindowAttributes, XGrabKey, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XKillClient, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XSelectInput, XSetInputFocus, XSetWindowBorder, XUnmapEvent, XWindowAttributes, XWindowChanges};
+use crate::action::{Action, Direction};
 use crate::config::{Config, Monitor};
 use crate::keybind::Keybind;
 use crate::layout::{Window, WindowLayout};
@@ -84,6 +84,9 @@ impl WindowManager {
 
         self.register_keybind(XK_e, Mod4Mask, Action::Exit);
         self.register_keybind(XK_Return, Mod4Mask, Action::ExecuteCommand { command: "alacritty".to_string() });
+        self.register_keybind(XK_Left, Mod4Mask, Action::MoveFocus { direction: Direction::Left });
+        self.register_keybind(XK_Right, Mod4Mask, Action::MoveFocus { direction: Direction::Right });
+        self.register_keybind(XK_q, Mod4Mask | ShiftMask, Action::CloseFocusedWindow);
 
         loop {
             let mut event: XEvent = std::mem::zeroed();
@@ -136,11 +139,9 @@ impl WindowManager {
                 }
             }
         }
-
-        self.exit();
     }
 
-    unsafe fn on_create_notify(&self, event: XCreateWindowEvent) {
+    fn on_create_notify(&self, event: XCreateWindowEvent) {
         println!("Create: {}", event.window);
     }
 
@@ -175,7 +176,7 @@ impl WindowManager {
             sibling: request.above,
             stack_mode: request.detail,
         };
-        XConfigureWindow(self.display, request.window, (request.value_mask as c_uint | (CWX | CWY | CWWidth | CWHeight | CWBorderWidth) as c_uint), &mut changes);
+        XConfigureWindow(self.display, request.window, request.value_mask as c_uint | (CWX | CWY | CWWidth | CWHeight | CWBorderWidth) as c_uint, &mut changes);
         if let Some(border) = &self.config.border {
             XSetWindowBorder(self.display, request.window, border.color);
         }
@@ -183,45 +184,83 @@ impl WindowManager {
         self.layout.insert(Window::new(request.window));
     }
 
-    unsafe fn on_configure_notify(&self, event: XConfigureEvent) {
+    fn on_configure_notify(&self, event: XConfigureEvent) {
         println!("Configure: {}", event.window);
     }
 
     unsafe fn on_map_request(&self, request: XMapRequestEvent) {
         println!("Map Request: {}", request.window);
         XMapWindow(self.display, request.window);
+        XSetInputFocus(self.display, request.window, RevertToNone, CurrentTime);
     }
 
-    unsafe fn on_map_notify(&self, event: XMapEvent) {
+    fn on_map_notify(&self, event: XMapEvent) {
         println!("Map: {}", event.window);
     }
 
-    unsafe fn on_unmap_notify(&self, event: XUnmapEvent) {
+    fn on_unmap_notify(&self, event: XUnmapEvent) {
         println!("Unmap: {}", event.window);
     }
 
-    unsafe fn on_destroy_notify(&self, event: XDestroyWindowEvent) {
+    fn on_destroy_notify(&self, event: XDestroyWindowEvent) {
         println!("Destroy: {}", event.window);
     }
 
-    unsafe fn on_reparent_notify(&self, event: XReparentEvent) {
+    fn on_reparent_notify(&self, event: XReparentEvent) {
         println!("Create: {}", event.window);
     }
 
-    unsafe fn on_keymap_notify(&self, event: XKeymapEvent) {
+    fn on_keymap_notify(&self, event: XKeymapEvent) {
         println!("Keymap: {:?}", event);
     }
 
-    unsafe fn on_mapping_notify(&self, event: XMappingEvent) {
+    fn on_mapping_notify(&self, event: XMappingEvent) {
         println!("Mapping: {{ request: {}, first_keycode: {}, count: {} }}", event.request, event.first_keycode, event.count);
     }
 
-    unsafe fn on_keypress(&self, event: XKeyEvent) {
+    fn on_keypress(&mut self, event: XKeyEvent) {
         println!("KeyPress: {{ keycode: {}, state: {} }}", event.keycode, event.state);
         for keybind in &self.keybinds {
             if event.keycode == keybind.keycode && event.state & (ShiftMask | ControlMask | Mod1Mask | Mod4Mask) == keybind.modifiers {
-                keybind.action.execute(&self);
+                keybind.action.clone().execute(self); // TODO: probably find a better way to do this
+                break;
             }
+        }
+    }
+
+    pub unsafe fn move_focus(&mut self, direction: &Direction) {
+        let index = self.layout.move_focus(direction);
+        if let Some(index) = index {
+            XSetInputFocus(self.display, self.layout.windows[index].id, RevertToNone, CurrentTime);
+        }
+    }
+
+    pub unsafe fn close_focused_window(&mut self) {
+        if let Some(window) = self.layout.get_focused_window() {
+            XKillClient(self.display, window.id);
+            self.layout.remove_focused_window();
+            if let Some(window) = self.layout.get_focused_window() {
+                XSetInputFocus(self.display, window.id, RevertToNone, CurrentTime);
+            }
+        }
+
+        let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
+        let border_space = (border_width * 2) as c_int;
+
+        let width = self.config.monitors[0].width / self.layout.windows.len() as c_int;
+        let height = self.config.monitors[0].height - border_space;
+
+        for (i, window) in self.layout.windows.iter().enumerate() {
+            let mut changes = XWindowChanges {
+                x: width * i as c_int,
+                y: 0,
+                width: width + if i == self.layout.windows.len() - 1 { self.config.monitors[0].width - width * (i as c_int + 1) } else { 0 } - border_space,
+                height,
+                border_width: 0,
+                sibling: 0,
+                stack_mode: 0,
+            };
+            XConfigureWindow(self.display, window.id, (CWX | CWY | CWWidth | CWHeight) as c_uint, &mut changes);
         }
     }
 

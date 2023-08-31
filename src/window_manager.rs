@@ -1,8 +1,6 @@
 use std::ffi::{c_int, c_uint, c_ulong};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use x11::keysym::XK_e;
-use x11::xlib::{ControlMask, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureWindow, XDefaultScreen, XEvent, XGetWindowAttributes, XGrabKey, XKeysymToKeycode, XMapWindow, XNextEvent, XOpenDisplay, XRootWindow, XSelectInput, XWindowAttributes, XWindowChanges};
+use x11::keysym::{XK_e, XK_Return};
+use x11::xlib::{ControlMask, CWBorderWidth, CWHeight, CWSibling, CWStackMode, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XDefaultScreen, XDestroyWindowEvent, XEvent, XGetGeometry, XGetWindowAttributes, XGrabKey, XHeightOfScreen, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XRootWindowOfScreen, XScreenCount, XScreenOfDisplay, XSelectInput, XUnmapEvent, XWidthOfScreen, XWindowAttributes, XWindowChanges};
 use crate::action::Action;
 use crate::keybind::Keybind;
 
@@ -11,6 +9,7 @@ pub struct WindowManager {
     screen: c_int,
     root_window: c_ulong,
     keybinds: Vec<Keybind>,
+    monitors: Vec<(u32, u32, u32, u32)>,
 }
 
 impl WindowManager {
@@ -23,24 +22,20 @@ impl WindowManager {
         let screen = XDefaultScreen(display);
         let root_window = XRootWindow(display, screen);
 
+        let keybinds = Vec::new();
+
+        let monitors = vec![(2560, 1440, 0, 0), (1080, 1920, 2560, 0)];
+
         Self {
             display,
             screen,
             root_window,
-            keybinds: Vec::new(),
+            keybinds,
+            monitors,
         }
     }
 
     pub unsafe fn run(&mut self) {
-
-        let mut running = Arc::new(AtomicBool::new(true));
-        let running_clone = running.clone();
-        ctrlc::set_handler(move || {
-            println!("Received Ctrl+C, cleaning up and exiting...");
-
-            running_clone.store(false, Ordering::SeqCst);
-        }).expect("Error setting Ctrl+C handler");
-
         let mut window_attributes: XWindowAttributes = XWindowAttributes {
             x: 0,
             y: 0,
@@ -73,81 +68,50 @@ impl WindowManager {
 
         XSelectInput(self.display, self.root_window, SubstructureRedirectMask | SubstructureNotifyMask);
 
-        // let e_keycode = XKeysymToKeycode(self.display, XK_e as std::ffi::c_ulong) as std::ffi::c_int;
-        // XGrabKey(self.display, e_keycode, Mod4Mask | Mod2Mask, root_window, False, GrabModeAsync, GrabModeAsync);
-
         self.register_keybind(XK_e, Mod4Mask, Action::Exit);
+        self.register_keybind(XK_Return, Mod4Mask, Action::ExecuteCommand { command: "alacritty".to_string() });
 
         loop {
-            if !running.load(Ordering::SeqCst) {
-                break;
-            }
-
             let mut event: XEvent = std::mem::zeroed();
             let result = XNextEvent(self.display, &mut event);
             if result != 0 {
                 eprintln!("Error on XNextEvent: {}", result);
             }
+
             match event.get_type() {
                 x11::xlib::CreateNotify => {
                     let create_event = event.create_window;
                     println!("Create: {}", create_event.window);
                 }
                 x11::xlib::ConfigureRequest => {
-                    let mut configure_request = event.configure_request;
-                    println!("Configure Request: {}", configure_request.window);
-                    let mut changes = XWindowChanges {
-                        x: configure_request.x,
-                        y: configure_request.y,
-                        width: configure_request.width,
-                        height: configure_request.height,
-                        border_width: configure_request.border_width,
-                        sibling: configure_request.above,
-                        stack_mode: configure_request.detail,
-                    };
-                    XConfigureWindow(self.display, configure_request.window, configure_request.value_mask as std::ffi::c_uint, &mut changes);
+                    self.on_configure_request(event.configure_request);
                 }
                 x11::xlib::ConfigureNotify => {
-                    let configure_event = event.configure;
-                    println!("Configure: {}", configure_event.window);
+                    self.on_configure_notify(event.configure);
                 }
                 x11::xlib::MapRequest => {
-                    let map_request = event.map_request;
-                    println!("Map Request: {}", map_request.window);
-                    XMapWindow(self.display, map_request.window);
+                    self.on_map_request(event.map_request);
                 }
                 x11::xlib::MapNotify => {
-                    let map_event = event.map;
-                    println!("Map: {}", map_event.window);
+                    self.on_map_notify(event.map);
                 }
                 x11::xlib::UnmapNotify => {
-                    let unmap_event = event.unmap;
-                    println!("Unmap: {}", unmap_event.window);
+                    self.on_unmap_notify(event.unmap);
                 }
                 x11::xlib::DestroyNotify => {
-                    let destroy_event = event.destroy_window;
-                    println!("Destroy: {}", destroy_event.window);
+                    self.on_destroy_notify(event.destroy_window);
                 }
                 x11::xlib::ReparentNotify => {
-                    let reparent_event = event.reparent;
-                    println!("Create: {}", reparent_event.window);
+                    self.on_reparent_notify(event.reparent);
                 }
                 x11::xlib::KeymapNotify => {
-                    let keymap_event = event.keymap;
-                    println!("Keymap: {:?}", keymap_event);
-                }
-                x11::xlib::KeyPress => {
-                    let key_event = event.key;
-                    println!("KeyPress: {{ keycode: {}, state: {} }}", key_event.keycode, key_event.state);
-                    for keybind in &self.keybinds {
-                        if key_event.keycode == keybind.keycode && key_event.state & (ShiftMask | ControlMask | Mod1Mask | Mod4Mask) == keybind.modifiers {
-                            keybind.action.execute(&self);
-                        }
-                    }
+                    self.on_keymap_notify(event.keymap);
                 }
                 x11::xlib::MappingNotify => {
-                    let mapping_event = event.mapping;
-                    println!("Mapping: {{ request: {}, first_keycode: {}, count: {} }}", mapping_event.request, mapping_event.first_keycode, mapping_event.count);
+                    self.on_mapping_notify(event.mapping);
+                }
+                x11::xlib::KeyPress => {
+                    self.on_keypress(event.key);
                 }
                 _ => {
                     // let atom_value = 367;
@@ -161,6 +125,62 @@ impl WindowManager {
         }
 
         self.exit();
+    }
+
+    unsafe fn on_configure_request(&self, request: XConfigureRequestEvent) {
+        println!("Configure Request: {}", request.window);
+        let mut changes = XWindowChanges {
+            x: 0,
+            y: 0,
+            width: self.monitors[0].0 as c_int,
+            height: self.monitors[0].1 as c_int,
+            border_width: 0,
+            sibling: request.above,
+            stack_mode: request.detail,
+        };
+        XConfigureWindow(self.display, request.window, (request.value_mask as c_uint | (CWX | CWY | CWWidth | CWHeight) as c_uint), &mut changes);
+    }
+
+    unsafe fn on_configure_notify(&self, event: XConfigureEvent) {
+        println!("Configure: {}", event.window);
+    }
+
+    unsafe fn on_map_request(&self, request: XMapRequestEvent) {
+        println!("Map Request: {}", request.window);
+        XMapWindow(self.display, request.window);
+    }
+
+    unsafe fn on_map_notify(&self, event: XMapEvent) {
+        println!("Map: {}", event.window);
+    }
+
+    unsafe fn on_unmap_notify(&self, event: XUnmapEvent) {
+        println!("Unmap: {}", event.window);
+    }
+
+    unsafe fn on_destroy_notify(&self, event: XDestroyWindowEvent) {
+        println!("Destroy: {}", event.window);
+    }
+
+    unsafe fn on_reparent_notify(&self, event: XReparentEvent) {
+        println!("Create: {}", event.window);
+    }
+
+    unsafe fn on_keymap_notify(&self, event: XKeymapEvent) {
+        println!("Keymap: {:?}", event);
+    }
+
+    unsafe fn on_mapping_notify(&self, event: XMappingEvent) {
+        println!("Mapping: {{ request: {}, first_keycode: {}, count: {} }}", event.request, event.first_keycode, event.count);
+    }
+
+    unsafe fn on_keypress(&self, event: XKeyEvent) {
+        println!("KeyPress: {{ keycode: {}, state: {} }}", event.keycode, event.state);
+        for keybind in &self.keybinds {
+            if event.keycode == keybind.keycode && event.state & (ShiftMask | ControlMask | Mod1Mask | Mod4Mask) == keybind.modifiers {
+                keybind.action.execute(&self);
+            }
+        }
     }
 
     unsafe fn register_keybind(&mut self, key: c_uint, modifiers: c_uint, action: Action) {

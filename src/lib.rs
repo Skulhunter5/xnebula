@@ -1,3 +1,4 @@
 pub mod window_manager;
-pub mod action;
-pub mod keybind;
+mod action;
+mod keybind;
+mod config;

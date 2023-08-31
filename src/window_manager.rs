@@ -1,6 +1,6 @@
 use std::ffi::{c_int, c_uint, c_ulong};
 use x11::keysym::{XK_e, XK_Return};
-use x11::xlib::{ControlMask, CWBorderWidth, CWHeight, CWSibling, CWStackMode, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XDefaultScreen, XDestroyWindowEvent, XEvent, XGetGeometry, XGetWindowAttributes, XGrabKey, XHeightOfScreen, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XRootWindowOfScreen, XScreenCount, XScreenOfDisplay, XSelectInput, XUnmapEvent, XWidthOfScreen, XWindowAttributes, XWindowChanges};
+use x11::xlib::{ControlMask, CWBorderWidth, CWHeight, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XCreateWindowEvent, XDefaultScreen, XDestroyWindowEvent, XEvent, XGetGeometry, XGetWindowAttributes, XGrabKey, XHeightOfScreen, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XSelectInput, XSetWindowBorder, XUnmapEvent, XWindowAttributes, XWindowChanges};
 use crate::action::Action;
 use crate::config::{Config, Monitor};
 use crate::keybind::Keybind;

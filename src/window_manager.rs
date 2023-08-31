@@ -4,6 +4,7 @@ use x11::xlib::{ControlMask, CWBorderWidth, CWHeight, CWWidth, CWX, CWY, Display
 use crate::action::Action;
 use crate::config::{Config, Monitor};
 use crate::keybind::Keybind;
+use crate::layout::{Window, WindowLayout};
 
 pub struct WindowManager {
     config: Config,
@@ -11,7 +12,7 @@ pub struct WindowManager {
     screen: c_int,
     root_window: c_ulong,
     keybinds: Vec<Keybind>,
-    monitors: Vec<(u32, u32, u32, u32)>,
+    layout: WindowLayout,
 }
 
 impl WindowManager {
@@ -36,7 +37,7 @@ impl WindowManager {
 
         let keybinds = Vec::new();
 
-        let monitors = vec![(2560, 1440, 0, 0), (1080, 1920, 2560, 0)];
+        let layout = WindowLayout::new();
 
         Self {
             config,
@@ -44,7 +45,7 @@ impl WindowManager {
             screen,
             root_window,
             keybinds,
-            monitors,
+            layout,
         }
     }
 
@@ -143,32 +144,43 @@ impl WindowManager {
         println!("Create: {}", event.window);
     }
 
-    unsafe fn on_configure_request(&self, request: XConfigureRequestEvent) {
+    unsafe fn on_configure_request(&mut self, request: XConfigureRequestEvent) {
         println!("Configure Request: {}", request.window);
-        let mut changes = match &self.config.border {
-            Some(border) => XWindowChanges {
-                x: 0,
+
+        let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
+        let border_space = (border_width * 2) as c_int;
+
+        let width = self.config.monitors[0].width / (self.layout.windows.len() + 1) as c_int;
+        let height = self.config.monitors[0].height - border_space;
+
+        for (i, window) in self.layout.windows.iter().enumerate() {
+            let mut changes = XWindowChanges {
+                x: width * i as c_int,
                 y: 0,
-                width: self.config.monitors[0].width - border.width * 2,
-                height: self.config.monitors[0].height - border.width * 2,
-                border_width: border.width,
-                sibling: request.above,
-                stack_mode: request.detail,
-            },
-            None => XWindowChanges {
-                x: 0,
-                y: 0,
-                width: self.config.monitors[0].width,
-                height: self.config.monitors[0].height,
-                border_width: 0,
-                sibling: request.above,
-                stack_mode: request.detail,
-            }
+                width: width - border_space,
+                height,
+                border_width,
+                sibling: 0,
+                stack_mode: 0,
+            };
+            XConfigureWindow(self.display, window.id, (CWX | CWY | CWWidth | CWHeight | CWBorderWidth) as c_uint, &mut changes);
+        }
+
+        let mut changes = XWindowChanges {
+            x: width * self.layout.windows.len() as c_int,
+            y: 0,
+            width: width - border_space,
+            height,
+            border_width,
+            sibling: request.above,
+            stack_mode: request.detail,
         };
         XConfigureWindow(self.display, request.window, (request.value_mask as c_uint | (CWX | CWY | CWWidth | CWHeight | CWBorderWidth) as c_uint), &mut changes);
         if let Some(border) = &self.config.border {
             XSetWindowBorder(self.display, request.window, border.color);
         }
+
+        self.layout.insert(Window::new(request.window));
     }
 
     unsafe fn on_configure_notify(&self, event: XConfigureEvent) {

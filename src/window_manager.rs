@@ -80,8 +80,7 @@ impl WindowManager {
 
             match event.get_type() {
                 x11::xlib::CreateNotify => {
-                    let create_event = event.create_window;
-                    println!("Create: {}", create_event.window);
+                    self.on_create_notify(event.create_window);
                 }
                 x11::xlib::ConfigureRequest => {
                     self.on_configure_request(event.configure_request);
@@ -125,6 +124,10 @@ impl WindowManager {
         }
 
         self.exit();
+    }
+
+    unsafe fn on_create_notify(&self, event: XCreateWindowEvent) {
+        println!("Create: {}", event.window);
     }
 
     unsafe fn on_configure_request(&self, request: XConfigureRequestEvent) {

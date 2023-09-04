@@ -6,6 +6,7 @@
 - Add other dynamic tiling modes (e.g. master-slave)
 
 # Fixes
-- correct for integer division inaccuracies in bounds
-- don't insert a window when a XConfigureRequest comes in, do so when it's mapped
-- figure out where the XIO error comes from
+- Correct for integer division inaccuracies in bounds
+- Don't insert a window when a XConfigureRequest comes in, do so when it's mapped
+- Figure out where the XIO error comes from
+- Keep working after closing the last window

@@ -266,7 +266,6 @@ impl WindowManager {
             if let Some(focused_id) = new_focus {
                 XSetInputFocus(self.display, focused_id, RevertToNone, CurrentTime);
             }
-            println!("After XKillClient: {{ new_focus: {:?}, changed: {:?} }}", new_focus, changed);
             for (window_id, bounds) in changed {
                 let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
                 let border_space = (border_width * 2) as c_int;

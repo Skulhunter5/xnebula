@@ -5,6 +5,7 @@
 - Add workspaces
 - Handle special windows such as docks and pop-ups correctly
 - Add other dynamic tiling modes (e.g. master-slave)
+- Add multi-monitor support
 
 # Fixes
 - Correct for integer division inaccuracies in bounds

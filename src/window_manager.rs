@@ -1,5 +1,5 @@
 use std::ffi::{c_int, c_uint, c_ulong};
-use x11::keysym::{XK_e, XK_Left, XK_q, XK_Return, XK_Right};
+use x11::keysym::{XK_Down, XK_e, XK_Left, XK_q, XK_Return, XK_Right, XK_Up};
 use x11::xlib::{ControlMask, CurrentTime, CWBorderWidth, CWHeight, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, RevertToNone, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XCreateWindowEvent, XDefaultScreen, XDestroyWindowEvent, XErrorEvent, XEvent, XGetWindowAttributes, XGrabKey, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XKillClient, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XSelectInput, XSetErrorHandler, XSetInputFocus, XSetWindowBorder, XUnmapEvent, XWindowAttributes, XWindowChanges};
 use crate::action::{Action};
 use crate::config::{Config, Monitor};
@@ -92,6 +92,8 @@ impl WindowManager {
         self.register_keybind(XK_Return, Mod4Mask, Action::ExecuteCommand { command: "alacritty".to_string() });
         self.register_keybind(XK_Left, Mod4Mask, Action::MoveFocus { direction: Direction::Left });
         self.register_keybind(XK_Right, Mod4Mask, Action::MoveFocus { direction: Direction::Right });
+        self.register_keybind(XK_Up, Mod4Mask, Action::MoveFocus { direction: Direction::Up });
+        self.register_keybind(XK_Down, Mod4Mask, Action::MoveFocus { direction: Direction::Down });
         self.register_keybind(XK_q, Mod4Mask | ShiftMask, Action::CloseFocusedWindow);
 
         loop {
@@ -252,7 +254,7 @@ impl WindowManager {
         }
     }
 
-    pub unsafe fn move_focus(&mut self, direction: &Direction) {
+    pub unsafe fn move_focus(&mut self, direction: Direction) {
         let window_id = self.tree.move_focus(direction);
         if let Some(window_id) = window_id {
             XSetInputFocus(self.display, window_id, RevertToNone, CurrentTime);

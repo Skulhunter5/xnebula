@@ -24,7 +24,7 @@ impl Action {
                 Command::new(command).spawn().expect(format!("Couldn't execute command: '{}'", command).as_str());
             }
             Action::MoveFocus { direction } => unsafe {
-                window_manager.move_focus(direction);
+                window_manager.move_focus(direction.clone());
             }
             Action::CloseFocusedWindow => unsafe {
                 window_manager.close_focused_window();

@@ -1,5 +1,5 @@
 use std::ffi::c_ulong;
-use crate::util::{Bounds, Side};
+use crate::util::Bounds;
 use crate::util::Direction;
 
 type NodeIndex = usize;
@@ -22,15 +22,17 @@ struct TreeNode {
     index: NodeIndex,
     parent: Option<NodeIndex>,
     bounds: Bounds,
+    direction: Direction,
     ty: TreeNodeTy,
 }
 
 impl TreeNode {
-    fn new(parent: Option<NodeIndex>, bounds: Bounds, ty: TreeNodeTy) -> Self {
+    fn new(parent: Option<NodeIndex>, bounds: Bounds, direction: Direction, ty: TreeNodeTy) -> Self {
         Self {
             index: 0,
-            bounds,
             parent,
+            bounds,
+            direction,
             ty,
         }
     }
@@ -44,7 +46,7 @@ enum TreeNodeTy {
     Node {
         left: NodeIndex,
         right: NodeIndex,
-        focus: Side,
+        focus: Direction,
     }
 }
 
@@ -70,23 +72,28 @@ impl WindowTree {
         if self.root != None {
             let focused_index = self.get_focused_index().unwrap();
             let focused_node = self.get_node(focused_index);
+            let current_direction = focused_node.direction.clone();
             let parent_index = focused_node.parent;
             if let TreeNodeTy::Leaf { window } = focused_node.ty {
                 let bounds = focused_node.bounds.clone();
-                let bounds_left = bounds.split(Side::Left);
-                let bounds_right = bounds.split(Side::Right);
+                let (bounds_left, bounds_right) = bounds.split(current_direction.clone());
                 changed.push((window.id, bounds_left.clone()));
                 changed.push((new_window.id, bounds_right.clone()));
-                let left = self.add_node(TreeNode::new(Some(focused_index), bounds_left, TreeNodeTy::Leaf { window: window.clone() }));
-                let right = self.add_node(TreeNode::new(Some(focused_index), bounds_right, TreeNodeTy::Leaf { window: new_window }));
+                let next_direction = match current_direction.clone() {
+                    Direction::Right | Direction::Left => Direction::Down,
+                    Direction::Down | Direction::Up => Direction::Right,
+                };
+                let left = self.add_node(TreeNode::new(Some(focused_index), bounds_left, current_direction.clone(), TreeNodeTy::Leaf { window: window.clone() }));
+                let right = self.add_node(TreeNode::new(Some(focused_index), bounds_right, next_direction.clone(), TreeNodeTy::Leaf { window: new_window }));
                 self.nodes[focused_index] = Some(TreeNode {
                     index: focused_index,
                     parent: parent_index,
                     bounds,
+                    direction: current_direction.clone(),
                     ty: TreeNodeTy::Node {
                         left,
                         right,
-                        focus: Side::Right,
+                        focus: current_direction.clone(),
                     },
                 });
             }
@@ -94,6 +101,7 @@ impl WindowTree {
             let root_index = self.add_node(TreeNode::new(
                 None,
                 self.bounds.clone(),
+                Direction::Right,
                 TreeNodeTy::Leaf {
                     window: new_window,
                 },
@@ -104,15 +112,14 @@ impl WindowTree {
         return changed;
     }
 
-    pub fn move_focus(&mut self, direction: &Direction) -> Option<c_ulong> {
+    pub fn move_focus(&mut self, direction: Direction) -> Option<c_ulong> {
         if self.root != None {
             let focused_index = self.get_focused_index().unwrap();
             let focused_node = self.get_node(focused_index);
-            let side = if *direction == Direction::Left { Side::Left } else { Side::Right };
             if focused_node.parent != None {
                 let mut node = self.get_node(focused_node.parent.unwrap());
                 while let TreeNodeTy::Node { focus, .. } = &node.ty {
-                    if *focus != side {
+                    if node.direction.is_on_same_line(direction.clone()) && *focus != direction {
                         break;
                     }
                     if let Some(parent) = node.parent {
@@ -123,7 +130,7 @@ impl WindowTree {
                 }
                 let node = self.get_node_mut(node.index);
                 if let TreeNodeTy::Node { ref mut focus, .. } = node.ty {
-                    *focus = side;
+                    *focus = direction.clone();
                     let focused_node = self.get_focused_node().unwrap();
                     if let TreeNodeTy::Leaf { window } = focused_node.ty {
                         return Some(window.id);
@@ -146,14 +153,14 @@ impl WindowTree {
             let parent_index = focused_node.parent.unwrap();
             let parent = self.get_node(parent_index);
             if let TreeNodeTy::Node { left, right, focus, .. } = &parent.ty {
-                let other_index = if *focus == Side::Left { *right } else { *left };
+                let other_index = if *focus == parent.direction { *left } else { *right };
                 let new_parent = if let Some(parent_index) = parent.parent {
                     let parent = self.get_node_mut(parent_index);
                     if let TreeNodeTy::Node { ref mut left, ref mut right, focus, .. } = &mut parent.ty {
-                        if *focus == Side::Left {
-                            *left = other_index;
-                        } else {
+                        if *focus == parent.direction {
                             *right = other_index;
+                        } else {
+                            *left = other_index;
                         }
                     }
                     Some(parent_index)
@@ -198,7 +205,11 @@ impl WindowTree {
             let bounds = if let Some(parent_index) = parent_index {
                 let parent = self.get_node(parent_index);
                 if let TreeNodeTy::Node { left, .. } = parent.ty {
-                    parent.bounds.split(if index == left { Side::Left } else { Side::Right })
+                    let mut direction = parent.direction.clone();
+                    if index == left {
+                        direction = direction.invert();
+                    }
+                    parent.bounds.split_single(direction)
                 } else {
                     Bounds::new(0, 0, 0, 0)
                 }
@@ -222,12 +233,17 @@ impl WindowTree {
     }
 
     fn get_focused_index(&self) -> Option<NodeIndex> {
+        /*if let Some(focused_node) = self.get_focused_node() {
+            Some(focused_node.index)
+        } else {
+            None
+        }*/
         if let Some(root_index) = self.root {
             let mut node = self.get_node(root_index);
             let mut index = root_index;
             while let TreeNodeTy::Node { left, right, focus, .. } = &node.ty {
-                node = self.get_node(if *focus == Side::Left { *left } else { *right });
-                index = if *focus == Side::Left { *left } else { *right };
+                node = self.get_node(if *focus == node.direction { *right } else { *left });
+                index = node.index;
             }
             return Some(index);
         }
@@ -238,7 +254,7 @@ impl WindowTree {
         if let Some(root_index) = self.root {
             let mut node = self.get_node(root_index);
             while let TreeNodeTy::Node { left, right, focus, .. } = &node.ty {
-                node = self.get_node(if *focus == Side::Left { *left } else { *right });
+                node = self.get_node(if *focus == node.direction { *right } else { *left });
             }
             return Some(node);
         } else {

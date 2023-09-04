@@ -17,7 +17,7 @@ pub struct WindowManager {
     display: *mut Display,
     root_window: c_ulong,
     keybinds: Vec<Keybind>,
-    tree: WindowTree,
+    layout: WindowTree,
 }
 
 impl WindowManager {
@@ -51,7 +51,7 @@ impl WindowManager {
             display,
             root_window,
             keybinds,
-            tree,
+            layout: tree,
         }
     }
 
@@ -171,7 +171,7 @@ impl WindowManager {
             println!("Configure Request: {}", request.window);
         }
 
-        let changed = self.tree.insert(Window::new(request.window));
+        let changed = self.layout.insert(Window::new(request.window));
 
         let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
         let border_space = (border_width * 2) as c_int;
@@ -259,16 +259,16 @@ impl WindowManager {
     }
 
     pub unsafe fn move_focus(&mut self, direction: Direction) {
-        let window_id = self.tree.move_focus(direction);
+        let window_id = self.layout.move_focus(direction);
         if let Some(window_id) = window_id {
             XSetInputFocus(self.display, window_id, RevertToNone, CurrentTime);
         }
     }
 
     pub unsafe fn close_focused_window(&mut self) {
-        if let Some(focused_id) = self.tree.get_focused_window_id() {
+        if let Some(focused_id) = self.layout.get_focused_window_id() {
             XKillClient(self.display, focused_id);
-            let (new_focus, changed) = self.tree.remove_focused_window();
+            let (new_focus, changed) = self.layout.remove_focused_window();
             if let Some(focused_id) = new_focus {
                 XSetInputFocus(self.display, focused_id, RevertToNone, CurrentTime);
             }
@@ -291,7 +291,7 @@ impl WindowManager {
     }
 
     pub fn change_tiling_direction(&mut self, direction: Direction) {
-        self.tree.change_tiling_direction(direction);
+        self.layout.change_tiling_direction(direction);
     }
 
     unsafe fn register_keybind(&mut self, key: c_uint, modifiers: c_uint, action: Action) {

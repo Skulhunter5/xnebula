@@ -12,6 +12,9 @@ pub enum Action {
         direction: Direction,
     },
     CloseFocusedWindow,
+    ChangeTilingDirection {
+        direction: Direction,
+    },
 }
 
 impl Action {
@@ -28,6 +31,9 @@ impl Action {
             }
             Action::CloseFocusedWindow => unsafe {
                 window_manager.close_focused_window();
+            }
+            Action::ChangeTilingDirection { direction } => {
+                window_manager.change_tiling_direction(direction.clone());
             }
         }
     }

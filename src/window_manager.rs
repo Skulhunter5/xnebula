@@ -95,6 +95,10 @@ impl WindowManager {
         self.register_keybind(XK_Up, Mod4Mask, Action::MoveFocus { direction: Direction::Up });
         self.register_keybind(XK_Down, Mod4Mask, Action::MoveFocus { direction: Direction::Down });
         self.register_keybind(XK_q, Mod4Mask | ShiftMask, Action::CloseFocusedWindow);
+        self.register_keybind(XK_Left, Mod4Mask | Mod1Mask, Action::ChangeTilingDirection { direction: Direction::Left });
+        self.register_keybind(XK_Right, Mod4Mask | Mod1Mask, Action::ChangeTilingDirection { direction: Direction::Right });
+        self.register_keybind(XK_Up, Mod4Mask | Mod1Mask, Action::ChangeTilingDirection { direction: Direction::Up });
+        self.register_keybind(XK_Down, Mod4Mask | Mod1Mask, Action::ChangeTilingDirection { direction: Direction::Down });
 
         loop {
             let mut event: XEvent = std::mem::zeroed();
@@ -284,6 +288,10 @@ impl WindowManager {
                 XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight) as c_uint, &mut changes);
             }
         }
+    }
+
+    pub fn change_tiling_direction(&mut self, direction: Direction) {
+        self.tree.change_tiling_direction(direction);
     }
 
     unsafe fn register_keybind(&mut self, key: c_uint, modifiers: c_uint, action: Action) {

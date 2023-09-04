@@ -193,6 +193,13 @@ impl WindowTree {
         None
     }
 
+    pub fn change_tiling_direction(&mut self, direction: Direction) {
+        if let Some(focused_index) = self.get_focused_index() {
+            let focused_node = self.get_node_mut(focused_index);
+            focused_node.direction = direction;
+        }
+    }
+
     fn apply_bounds(&mut self, index: NodeIndex) -> Vec<(c_ulong, Bounds)> {
         let mut changed = Vec::new();
         let mut nodes = Vec::new();

@@ -97,7 +97,7 @@ impl WindowManager {
         loop {
             let mut event: XEvent = std::mem::zeroed();
             let result = XNextEvent(self.display, &mut event);
-            println!("Event received: type={}", event.get_type());
+            //println!("Event received: type={}", event.get_type());
             if result != 0 {
                 eprintln!("Error on XNextEvent: {}", result);
             }
@@ -146,18 +146,24 @@ impl WindowManager {
                     // let atom_name = std::ffi::CStr::from_ptr(atom_name_ptr).to_string_lossy();
                     // println!("Atom {} has name: {}", atom_value, atom_name);
                     // XFree(atom_name_ptr as *mut _);
-                    println!("Other: {:?}", event);
+                    if self.config.debug_events {
+                        println!("Other: {:?}", event);
+                    }
                 }
             }
         }
     }
 
     fn on_create_notify(&self, event: XCreateWindowEvent) {
-        println!("Create: {}", event.window);
+        if self.config.debug_events {
+            println!("Create: {}", event.window);
+        }
     }
 
     unsafe fn on_configure_request(&mut self, request: XConfigureRequestEvent) { // TODO: check if a configure_request stems from a new window
-        println!("Configure Request: {}", request.window);
+        if self.config.debug_events {
+            println!("Configure Request: {}", request.window);
+        }
 
         let changed = self.tree.insert(Window::new(request.window));
 
@@ -185,41 +191,59 @@ impl WindowManager {
     }
 
     fn on_configure_notify(&self, event: XConfigureEvent) {
-        println!("Configure: {}", event.window);
+        if self.config.debug_events {
+            println!("Configure: {}", event.window);
+        }
     }
 
     unsafe fn on_map_request(&self, request: XMapRequestEvent) {
-        println!("Map Request: {}", request.window);
+        if self.config.debug_events {
+            println!("Map Request: {}", request.window);
+        }
         XMapWindow(self.display, request.window);
         XSetInputFocus(self.display, request.window, RevertToNone, CurrentTime);
     }
 
     fn on_map_notify(&self, event: XMapEvent) {
-        println!("Map: {}", event.window);
+        if self.config.debug_events {
+            println!("Map: {}", event.window);
+        }
     }
 
     fn on_unmap_notify(&self, event: XUnmapEvent) {
-        println!("Unmap: {}", event.window);
+        if self.config.debug_events {
+            println!("Unmap: {}", event.window);
+        }
     }
 
     fn on_destroy_notify(&self, event: XDestroyWindowEvent) {
-        println!("Destroy: {}", event.window);
+        if self.config.debug_events {
+            println!("Destroy: {}", event.window);
+        }
     }
 
     fn on_reparent_notify(&self, event: XReparentEvent) {
-        println!("Create: {}", event.window);
+        if self.config.debug_events {
+            println!("Create: {}", event.window);
+        }
     }
 
     fn on_keymap_notify(&self, event: XKeymapEvent) {
-        println!("Keymap: {:?}", event);
+        if self.config.debug_events {
+            println!("Keymap: {:?}", event);
+        }
     }
 
     fn on_mapping_notify(&self, event: XMappingEvent) {
-        println!("Mapping: {{ request: {}, first_keycode: {}, count: {} }}", event.request, event.first_keycode, event.count);
+        if self.config.debug_events {
+            println!("Mapping: {{ request: {}, first_keycode: {}, count: {} }}", event.request, event.first_keycode, event.count);
+        }
     }
 
     fn on_keypress(&mut self, event: XKeyEvent) {
-        println!("KeyPress: {{ keycode: {}, state: {} }}", event.keycode, event.state);
+        if self.config.debug_events {
+            println!("KeyPress: {{ keycode: {}, state: {} }}", event.keycode, event.state);
+        }
         for keybind in &self.keybinds {
             if event.keycode == keybind.keycode && event.state & (ShiftMask | ControlMask | Mod1Mask | Mod4Mask) == keybind.modifiers {
                 keybind.action.clone().execute(self); // TODO: probably find a better way to do this

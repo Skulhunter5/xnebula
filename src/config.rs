@@ -31,6 +31,7 @@ impl Default for Border {
 
 #[derive(Debug)]
 pub struct Config {
+    pub debug_events: bool,
     pub monitors: Vec<Monitor>,
     pub border: Option<Border>,
 }
@@ -38,6 +39,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            debug_events: false,
             monitors: Vec::new(),
             border: Some(Border::default()),
         }

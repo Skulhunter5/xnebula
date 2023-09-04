@@ -3,3 +3,4 @@ mod action;
 mod keybind;
 mod config;
 mod layout;
+mod util;

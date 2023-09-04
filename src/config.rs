@@ -1,20 +1,15 @@
 use std::ffi::{c_int, c_ulong};
+use crate::util::Bounds;
 
 #[derive(Debug)]
 pub struct Monitor {
-    pub width: c_int,
-    pub height: c_int,
-    pub x: c_int,
-    pub y: c_int,
+    pub bounds: Bounds,
 }
 
 impl Monitor {
     pub fn new(width: c_int, height: c_int, x: c_int, y: c_int) -> Self {
         Self {
-            width,
-            height,
-            x,
-            y,
+            bounds: Bounds::new(x, y, width, height),
         }
     }
 }

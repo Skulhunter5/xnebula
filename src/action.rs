@@ -1,13 +1,6 @@
 use std::process::Command;
+use crate::util::Direction;
 use crate::window_manager::WindowManager;
-
-#[derive(Clone)]
-pub enum Direction {
-    Left,
-    Right,
-    Up,
-    Down,
-}
 
 #[derive(Clone)]
 pub enum Action {

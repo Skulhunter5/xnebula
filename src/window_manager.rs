@@ -1,18 +1,23 @@
 use std::ffi::{c_int, c_uint, c_ulong};
 use x11::keysym::{XK_e, XK_Left, XK_q, XK_Return, XK_Right};
-use x11::xlib::{ControlMask, CurrentTime, CWBorderWidth, CWHeight, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, RevertToNone, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XCreateWindowEvent, XDefaultScreen, XDestroyWindowEvent, XEvent, XGetWindowAttributes, XGrabKey, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XKillClient, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XSelectInput, XSetInputFocus, XSetWindowBorder, XUnmapEvent, XWindowAttributes, XWindowChanges};
-use crate::action::{Action, Direction};
+use x11::xlib::{ControlMask, CurrentTime, CWBorderWidth, CWHeight, CWWidth, CWX, CWY, Display, False, GrabModeAsync, LockMask, Mod1Mask, Mod2Mask, Mod4Mask, RevertToNone, ShiftMask, SubstructureNotifyMask, SubstructureRedirectMask, XCloseDisplay, XConfigureEvent, XConfigureRequestEvent, XConfigureWindow, XCreateWindowEvent, XDefaultScreen, XDestroyWindowEvent, XErrorEvent, XEvent, XGetWindowAttributes, XGrabKey, XKeyEvent, XKeymapEvent, XKeysymToKeycode, XKillClient, XMapEvent, XMappingEvent, XMapRequestEvent, XMapWindow, XNextEvent, XOpenDisplay, XReparentEvent, XRootWindow, XSelectInput, XSetErrorHandler, XSetInputFocus, XSetWindowBorder, XUnmapEvent, XWindowAttributes, XWindowChanges};
+use crate::action::{Action};
 use crate::config::{Config, Monitor};
 use crate::keybind::Keybind;
-use crate::layout::{Window, WindowLayout};
+use crate::layout::{Window, WindowTree};
+use crate::util::Direction;
+
+extern "C" fn custom_error_handler(_display: *mut Display, error_event: *mut XErrorEvent) -> c_int {
+    println!("X11 Error occurred: {:?}", error_event);
+    0
+}
 
 pub struct WindowManager {
     config: Config,
     display: *mut Display,
-    screen: c_int,
     root_window: c_ulong,
     keybinds: Vec<Keybind>,
-    layout: WindowLayout,
+    tree: WindowTree,
 }
 
 impl WindowManager {
@@ -32,20 +37,21 @@ impl WindowManager {
             eprintln!("Failed to open X display");
         }
 
+        XSetErrorHandler(Some(custom_error_handler));
+
         let screen = XDefaultScreen(display);
         let root_window = XRootWindow(display, screen);
 
         let keybinds = Vec::new();
 
-        let layout = WindowLayout::new();
+        let tree = WindowTree::new(config.monitors[0].bounds.clone());
 
         Self {
             config,
             display,
-            screen,
             root_window,
             keybinds,
-            layout,
+            tree,
         }
     }
 
@@ -91,6 +97,7 @@ impl WindowManager {
         loop {
             let mut event: XEvent = std::mem::zeroed();
             let result = XNextEvent(self.display, &mut event);
+            println!("Event received: type={}", event.get_type());
             if result != 0 {
                 eprintln!("Error on XNextEvent: {}", result);
             }
@@ -129,6 +136,10 @@ impl WindowManager {
                 x11::xlib::KeyPress => {
                     self.on_keypress(event.key);
                 }
+                x11::xlib::KeyRelease => {
+                    // let event = event.key;
+                    // println!("KeyRelease: {{ keycode: {}, state: {} }}", event.keycode, event.state);
+                }
                 _ => {
                     // let atom_value = 367;
                     // let atom_name_ptr = XGetAtomName(display, atom_value);
@@ -145,43 +156,32 @@ impl WindowManager {
         println!("Create: {}", event.window);
     }
 
-    unsafe fn on_configure_request(&mut self, request: XConfigureRequestEvent) {
+    unsafe fn on_configure_request(&mut self, request: XConfigureRequestEvent) { // TODO: check if a configure_request stems from a new window
         println!("Configure Request: {}", request.window);
+
+        let changed = self.tree.insert(Window::new(request.window));
 
         let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
         let border_space = (border_width * 2) as c_int;
 
-        let width = self.config.monitors[0].width / (self.layout.windows.len() + 1) as c_int;
-        let height = self.config.monitors[0].height - border_space;
-
-        for (i, window) in self.layout.windows.iter().enumerate() {
+        // TODO: check if there's a problem with not copying sibling and stack_mode and including request.value_mask for newly created windows
+        for (window_id, bounds) in changed {
             let mut changes = XWindowChanges {
-                x: width * i as c_int,
-                y: 0,
-                width: width - border_space,
-                height,
+                x: bounds.x,
+                y: bounds.y,
+                width: bounds.width - border_space,
+                height: bounds.height - border_space,
                 border_width,
                 sibling: 0,
                 stack_mode: 0,
             };
-            XConfigureWindow(self.display, window.id, (CWX | CWY | CWWidth | CWHeight | CWBorderWidth) as c_uint, &mut changes);
+            XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight | if window_id == request.window { CWBorderWidth } else { 0 }) as c_uint, &mut changes);
+            if window_id == request.window {
+                if let Some(border) = &self.config.border {
+                    XSetWindowBorder(self.display, window_id, border.color);
+                }
+            }
         }
-
-        let mut changes = XWindowChanges {
-            x: width * self.layout.windows.len() as c_int,
-            y: 0,
-            width: width - border_space,
-            height,
-            border_width,
-            sibling: request.above,
-            stack_mode: request.detail,
-        };
-        XConfigureWindow(self.display, request.window, request.value_mask as c_uint | (CWX | CWY | CWWidth | CWHeight | CWBorderWidth) as c_uint, &mut changes);
-        if let Some(border) = &self.config.border {
-            XSetWindowBorder(self.display, request.window, border.color);
-        }
-
-        self.layout.insert(Window::new(request.window));
     }
 
     fn on_configure_notify(&self, event: XConfigureEvent) {
@@ -229,38 +229,35 @@ impl WindowManager {
     }
 
     pub unsafe fn move_focus(&mut self, direction: &Direction) {
-        let index = self.layout.move_focus(direction);
-        if let Some(index) = index {
-            XSetInputFocus(self.display, self.layout.windows[index].id, RevertToNone, CurrentTime);
+        let window_id = self.tree.move_focus(direction);
+        if let Some(window_id) = window_id {
+            XSetInputFocus(self.display, window_id, RevertToNone, CurrentTime);
         }
     }
 
     pub unsafe fn close_focused_window(&mut self) {
-        if let Some(window) = self.layout.get_focused_window() {
-            XKillClient(self.display, window.id);
-            self.layout.remove_focused_window();
-            if let Some(window) = self.layout.get_focused_window() {
-                XSetInputFocus(self.display, window.id, RevertToNone, CurrentTime);
+        if let Some(focused_id) = self.tree.get_focused_window_id() {
+            XKillClient(self.display, focused_id);
+            let (new_focus, changed) = self.tree.remove_focused_window();
+            if let Some(focused_id) = new_focus {
+                XSetInputFocus(self.display, focused_id, RevertToNone, CurrentTime);
             }
-        }
+            println!("After XKillClient: {{ new_focus: {:?}, changed: {:?} }}", new_focus, changed);
+            for (window_id, bounds) in changed {
+                let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
+                let border_space = (border_width * 2) as c_int;
 
-        let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
-        let border_space = (border_width * 2) as c_int;
-
-        let width = self.config.monitors[0].width / self.layout.windows.len() as c_int;
-        let height = self.config.monitors[0].height - border_space;
-
-        for (i, window) in self.layout.windows.iter().enumerate() {
-            let mut changes = XWindowChanges {
-                x: width * i as c_int,
-                y: 0,
-                width: width + if i == self.layout.windows.len() - 1 { self.config.monitors[0].width - width * (i as c_int + 1) } else { 0 } - border_space,
-                height,
-                border_width: 0,
-                sibling: 0,
-                stack_mode: 0,
-            };
-            XConfigureWindow(self.display, window.id, (CWX | CWY | CWWidth | CWHeight) as c_uint, &mut changes);
+                let mut changes = XWindowChanges {
+                    x: bounds.x,
+                    y: bounds.y,
+                    width: bounds.width - border_space,
+                    height: bounds.height - border_space,
+                    border_width: 0,
+                    sibling: 0,
+                    stack_mode: 0,
+                };
+                XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight) as c_uint, &mut changes);
+            }
         }
     }
 

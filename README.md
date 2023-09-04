@@ -5,7 +5,7 @@ xnebula is a tiling window manager for X11 written in Rust
 xnebula is still in a very early stage and doesn't even implement very basic features like moving and resizing windows yet.
 
 ## Current plans
-- Add manual tiling options
+- Add manual tiling controls
 - Implement moving windows
 - Implement a config file
 - Handle special window types differently, such as docks

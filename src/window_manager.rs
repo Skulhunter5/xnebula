@@ -32,12 +32,12 @@ impl WindowManager {
         assert!(config.monitors.len() > 0);
         println!("Config: {:?}", config);
 
+        XSetErrorHandler(Some(custom_error_handler));
+
         let display = XOpenDisplay(std::ptr::null());
         if display.is_null() {
             eprintln!("Failed to open X display");
         }
-
-        XSetErrorHandler(Some(custom_error_handler));
 
         let screen = XDefaultScreen(display);
         let root_window = XRootWindow(display, screen);

@@ -240,11 +240,6 @@ impl WindowTree {
     }
 
     fn get_focused_index(&self) -> Option<NodeIndex> {
-        /*if let Some(focused_node) = self.get_focused_node() {
-            Some(focused_node.index)
-        } else {
-            None
-        }*/
         if let Some(root_index) = self.root {
             let mut node = self.get_node(root_index);
             let mut index = root_index;

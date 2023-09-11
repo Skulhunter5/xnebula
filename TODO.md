@@ -13,3 +13,4 @@
 - Keep working after closing the last window
 - Clamp window proportions when resizing
 - Resize correctly when window has been manually tiled in opposite direction
+- Handle windows that unmap or destroy themselves

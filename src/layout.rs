@@ -122,7 +122,7 @@ impl WindowTree {
             if focused_node.parent != None {
                 let mut node = self.get_node(focused_node.parent.unwrap());
                 while let TreeNodeTy::Node { focus, .. } = &node.ty {
-                    if node.direction.is_on_same_line(direction.clone()) && *focus != direction {
+                    if node.direction.is_along_same_axis(direction.clone()) && *focus != direction {
                         break;
                     }
                     if let Some(parent) = node.parent {

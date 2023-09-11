@@ -17,7 +17,7 @@ impl Direction {
         }
     }
 
-    pub fn is_on_same_line(&self, other: Direction) -> bool {
+    pub fn is_along_same_axis(&self, other: Direction) -> bool {
         match self {
             Direction::Right => other == Direction::Right || other == Direction::Left,
             Direction::Left => other == Direction::Left || other == Direction::Right,

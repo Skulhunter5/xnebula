@@ -47,6 +47,7 @@ enum TreeNodeTy {
         left: NodeIndex,
         right: NodeIndex,
         focus: Direction,
+        proportions: f32,
     }
 }
 
@@ -75,8 +76,9 @@ impl WindowTree {
             let current_direction = focused_node.direction.clone();
             let parent_index = focused_node.parent;
             if let TreeNodeTy::Leaf { window } = focused_node.ty {
+                let proportions = 0.5f32;
                 let bounds = focused_node.bounds.clone();
-                let (bounds_left, bounds_right) = bounds.split(current_direction.clone());
+                let (bounds_left, bounds_right) = bounds.split(current_direction.clone(), proportions);
                 changed.push((window.id, bounds_left.clone()));
                 changed.push((new_window.id, bounds_right.clone()));
                 let next_direction = match current_direction.clone() {
@@ -94,6 +96,7 @@ impl WindowTree {
                         left,
                         right,
                         focus: current_direction.clone(),
+                        proportions,
                     },
                 });
             }
@@ -141,7 +144,7 @@ impl WindowTree {
         None
     }
 
-    pub fn remove_focused_window(&mut self) -> (Option<c_ulong>, Vec<(c_ulong, Bounds)>) {
+    pub fn remove_focused_window(&mut self) -> (Option<c_ulong>, Vec<(c_ulong, Bounds)>) { // TODO: refactor return value
         if let Some(root_index) = self.root {
             if let TreeNodeTy::Leaf { .. } = self.get_node(root_index).ty {
                 self.nodes[root_index] = None;
@@ -200,6 +203,39 @@ impl WindowTree {
         }
     }
 
+    pub fn resize_focused_window(&mut self, direction: Direction, amount: f32) -> Option<Vec<(c_ulong, Bounds)>> {
+        if self.root != None {
+            let focused_index = self.get_focused_index().unwrap();
+            let focused_node = self.get_node(focused_index);
+            if focused_node.parent != None {
+                let mut node = self.get_node(focused_node.parent.unwrap());
+                loop {
+                    if node.direction.is_on_same_line(direction.clone()) {
+                        break;
+                    }
+                    if let Some(parent) = node.parent {
+                        node = self.get_node(parent);
+                    } else {
+                        return None;
+                    }
+                }
+                let node = self.get_node_mut(node.index);
+                let node_direction = node.direction.clone();
+                if let TreeNodeTy::Node { ref mut proportions, .. } = node.ty {
+                    let amount = if node_direction == direction {
+                        amount
+                    } else {
+                        -amount
+                    };
+                    *proportions += amount;
+                }
+                let node_index = node.index;
+                return Some(self.apply_bounds(node_index));
+            }
+        }
+        None
+    }
+
     fn apply_bounds(&mut self, index: NodeIndex) -> Vec<(c_ulong, Bounds)> {
         let mut changed = Vec::new();
         let mut nodes = Vec::new();
@@ -211,12 +247,14 @@ impl WindowTree {
             let index = node.index;
             let bounds = if let Some(parent_index) = parent_index {
                 let parent = self.get_node(parent_index);
-                if let TreeNodeTy::Node { left, .. } = parent.ty {
-                    let mut direction = parent.direction.clone();
+                if let TreeNodeTy::Node { left, proportions, .. } = parent.ty {
+                    let direction = parent.direction.clone();
+                    let (bounds_left, bounds_right) = parent.bounds.split(direction, proportions);
                     if index == left {
-                        direction = direction.invert();
+                        bounds_left
+                    } else {
+                        bounds_right
                     }
-                    parent.bounds.split_single(direction)
                 } else {
                     Bounds::new(0, 0, 0, 0)
                 }
@@ -236,6 +274,7 @@ impl WindowTree {
             }
             i += 1;
         }
+        println!("Changed: {}", changed.len());
         return changed;
     }
 

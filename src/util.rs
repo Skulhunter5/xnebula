@@ -45,81 +45,64 @@ impl Bounds {
         }
     }
 
-    pub fn split(&self, direction: Direction) -> (Self, Self) {
+    pub fn split(&self, direction: Direction, proportions: f32) -> (Self, Self) {
         match direction {
-            Direction::Right => (Self {
-                x: self.x,
-                y: self.y,
-                width: self.width / 2,
-                height: self.height,
-            }, Self {
-                x: self.x + self.width / 2,
-                y: self.y,
-                width: self.width / 2,
-                height: self.height,
-            }),
-            Direction::Left => (Self {
-                x: self.x + self.width / 2,
-                y: self.y,
-                width: self.width / 2,
-                height: self.height,
-            }, Self {
-                x: self.x,
-                y: self.y,
-                width: self.width / 2,
-                height: self.height,
-            }),
-            Direction::Down => (Self {
-                x: self.x,
-                y: self.y,
-                width: self.width,
-                height: self.height / 2,
-            }, Self {
-                x: self.x,
-                y: self.y + self.height / 2,
-                width: self.width,
-                height: self.height / 2,
-            }),
-            Direction::Up => (Self {
-                x: self.x,
-                y: self.y + self.height / 2,
-                width: self.width,
-                height: self.height / 2,
-            }, Self {
-                x: self.x,
-                y: self.y,
-                width: self.width,
-                height: self.height / 2,
-            }),
-        }
-    }
-
-    pub fn split_single(&self, direction: Direction) -> Self {
-        match direction {
-            Direction::Right => Self {
-                x: self.x + self.width / 2,
-                y: self.y,
-                width: self.width / 2,
-                height: self.height,
+            Direction::Right => {
+                let w1 = (self.width as f32 * proportions) as i32;
+                (Self {
+                    x: self.x,
+                    y: self.y,
+                    width: w1,
+                    height: self.height,
+                }, Self {
+                    x: self.x + w1,
+                    y: self.y,
+                    width: self.width - w1,
+                    height: self.height,
+                })
             },
-            Direction::Left => Self {
-                x: self.x,
-                y: self.y,
-                width: self.width / 2,
-                height: self.height,
+            Direction::Left => {
+                let w1 = (self.width as f32 * proportions) as i32;
+                (Self {
+                    x: self.x + w1,
+                    y: self.y,
+                    width: self.width - w1,
+                    height: self.height,
+                }, Self {
+                    x: self.x,
+                    y: self.y,
+                    width: w1,
+                    height: self.height,
+                })
             },
-            Direction::Down => Self {
-                x: self.x,
-                y: self.y + self.height / 2,
-                width: self.width,
-                height: self.height / 2,
+            Direction::Down => {
+                let h1 = (self.height as f32 * proportions) as i32;
+                (Self {
+                    x: self.x,
+                    y: self.y,
+                    width: self.width,
+                    height: h1,
+                }, Self {
+                    x: self.x,
+                    y: self.y + h1,
+                    width: self.width,
+                    height: self.height - h1,
+                })
             },
-            Direction::Up => Self {
-                x: self.x,
-                y: self.y,
-                width: self.width,
-                height: self.height / 2,
-            }
+            Direction::Up => {
+                let h1 = (self.height as f32 * proportions) as i32;
+                (Self {
+                    x: self.x,
+                    y: self.y + h1,
+                    width: self.width,
+                    height: self.height - h1,
+                }, Self {
+                    x: self.x,
+                    y: self.y,
+                    width: self.width,
+                    height: h1,
+                })
+            },
         }
     }
 }

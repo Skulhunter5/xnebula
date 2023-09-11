@@ -15,6 +15,10 @@ pub enum Action {
     ChangeTilingDirection {
         direction: Direction,
     },
+    ResizeFocusedWindow {
+        direction: Direction,
+        amount: f32,
+    },
 }
 
 impl Action {
@@ -34,6 +38,9 @@ impl Action {
             }
             Action::ChangeTilingDirection { direction } => {
                 window_manager.change_tiling_direction(direction.clone());
+            }
+            Action::ResizeFocusedWindow { direction, amount } => unsafe {
+                window_manager.resize_focused_window(direction.clone(), amount.clone());
             }
         }
     }

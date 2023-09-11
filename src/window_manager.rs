@@ -5,7 +5,7 @@ use crate::action::{Action};
 use crate::config::{Config, Monitor};
 use crate::keybind::Keybind;
 use crate::layout::{Window, WindowTree};
-use crate::util::Direction;
+use crate::util::{Bounds, Direction};
 
 extern "C" fn custom_error_handler(_display: *mut Display, error_event: *mut XErrorEvent) -> c_int {
     println!("X11 Error occurred: {:?}", error_event);
@@ -99,6 +99,10 @@ impl WindowManager {
         self.register_keybind(XK_Right, Mod4Mask | Mod1Mask, Action::ChangeTilingDirection { direction: Direction::Right });
         self.register_keybind(XK_Up, Mod4Mask | Mod1Mask, Action::ChangeTilingDirection { direction: Direction::Up });
         self.register_keybind(XK_Down, Mod4Mask | Mod1Mask, Action::ChangeTilingDirection { direction: Direction::Down });
+        self.register_keybind(XK_Left, Mod4Mask | ControlMask, Action::ResizeFocusedWindow { direction: Direction::Left, amount: 0.1 });
+        self.register_keybind(XK_Right, Mod4Mask | ControlMask, Action::ResizeFocusedWindow { direction: Direction::Right, amount: 0.1 });
+        self.register_keybind(XK_Up, Mod4Mask | ControlMask, Action::ResizeFocusedWindow { direction: Direction::Up, amount: 0.1 });
+        self.register_keybind(XK_Down, Mod4Mask | ControlMask, Action::ResizeFocusedWindow { direction: Direction::Down, amount: 0.1 });
 
         loop {
             let mut event: XEvent = std::mem::zeroed();
@@ -265,6 +269,24 @@ impl WindowManager {
         }
     }
 
+    unsafe fn configure_changed_windows(&mut self, changed: Vec<(c_ulong, Bounds)>) {
+        for (window_id, bounds) in changed {
+            let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
+            let border_space = (border_width * 2) as c_int;
+
+            let mut changes = XWindowChanges {
+                x: bounds.x,
+                y: bounds.y,
+                width: bounds.width - border_space,
+                height: bounds.height - border_space,
+                border_width: 0,
+                sibling: 0,
+                stack_mode: 0,
+            };
+            XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight) as c_uint, &mut changes);
+        }
+    }
+
     pub unsafe fn close_focused_window(&mut self) {
         if let Some(focused_id) = self.layout.get_focused_window_id() {
             XKillClient(self.display, focused_id);
@@ -272,26 +294,18 @@ impl WindowManager {
             if let Some(focused_id) = new_focus {
                 XSetInputFocus(self.display, focused_id, RevertToNone, CurrentTime);
             }
-            for (window_id, bounds) in changed {
-                let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
-                let border_space = (border_width * 2) as c_int;
-
-                let mut changes = XWindowChanges {
-                    x: bounds.x,
-                    y: bounds.y,
-                    width: bounds.width - border_space,
-                    height: bounds.height - border_space,
-                    border_width: 0,
-                    sibling: 0,
-                    stack_mode: 0,
-                };
-                XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight) as c_uint, &mut changes);
-            }
+            self.configure_changed_windows(changed);
         }
     }
 
     pub fn change_tiling_direction(&mut self, direction: Direction) {
         self.layout.change_tiling_direction(direction);
+    }
+
+    pub unsafe fn resize_focused_window(&mut self, direction: Direction, amount: f32) {
+        if let Some(changed) = self.layout.resize_focused_window(direction, amount) {
+            self.configure_changed_windows(changed);
+        }
     }
 
     unsafe fn register_keybind(&mut self, key: c_uint, modifiers: c_uint, action: Action) {

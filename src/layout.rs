@@ -274,7 +274,6 @@ impl WindowTree {
             }
             i += 1;
         }
-        println!("Changed: {}", changed.len());
         return changed;
     }
 

@@ -5,7 +5,7 @@ use crate::action::{Action};
 use crate::config::{Config, Monitor};
 use crate::keybind::Keybind;
 use crate::layout::{ChangedWindows, Window, WindowTree};
-use crate::util::{Bounds, Direction};
+use crate::util::Direction;
 
 extern "C" fn custom_error_handler(_display: *mut Display, error_event: *mut XErrorEvent) -> c_int {
     println!("X11 Error occurred: {:?}", error_event);
@@ -170,34 +170,21 @@ impl WindowManager {
         }
     }
 
-    unsafe fn on_configure_request(&mut self, request: XConfigureRequestEvent) { // TODO: check if a configure_request stems from a new window
+    unsafe fn on_configure_request(&self, request: XConfigureRequestEvent) { // TODO: check if a configure_request stems from a new window
         if self.config.debug_events {
             println!("Configure Request: {}", request.window);
         }
 
-        let changed = self.layout.insert(Window::new(request.window));
-
-        let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
-        let border_space = (border_width * 2) as c_int;
-
-        // TODO: check if there's a problem with not copying sibling and stack_mode and including request.value_mask for newly created windows
-        for (window_id, bounds) in changed {
-            let mut changes = XWindowChanges {
-                x: bounds.x,
-                y: bounds.y,
-                width: bounds.width - border_space,
-                height: bounds.height - border_space,
-                border_width,
-                sibling: 0,
-                stack_mode: 0,
-            };
-            XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight | if window_id == request.window { CWBorderWidth } else { 0 }) as c_uint, &mut changes);
-            if window_id == request.window {
-                if let Some(border) = &self.config.border {
-                    XSetWindowBorder(self.display, window_id, border.color);
-                }
-            }
-        }
+        let mut changes = XWindowChanges {
+            x: request.x,
+            y: request.y,
+            width: request.width,
+            height: request.height,
+            border_width: request.border_width,
+            sibling: request.above,
+            stack_mode: request.detail,
+        };
+        XConfigureWindow(self.display, request.window, request.value_mask as c_uint, &mut changes);
     }
 
     fn on_configure_notify(&self, event: XConfigureEvent) {
@@ -206,10 +193,18 @@ impl WindowManager {
         }
     }
 
-    unsafe fn on_map_request(&self, request: XMapRequestEvent) {
+    unsafe fn on_map_request(&mut self, request: XMapRequestEvent) {
         if self.config.debug_events {
             println!("Map Request: {}", request.window);
         }
+
+        let changed = self.layout.insert(Window::new(request.window));
+        self.configure_changed_windows(changed);
+
+        if let Some(border) = &self.config.border {
+            XSetWindowBorder(self.display, request.window, border.color);
+        }
+
         XMapWindow(self.display, request.window);
         XSetInputFocus(self.display, request.window, RevertToNone, CurrentTime);
     }
@@ -279,11 +274,11 @@ impl WindowManager {
                 y: bounds.y,
                 width: bounds.width - border_space,
                 height: bounds.height - border_space,
-                border_width: 0,
+                border_width,
                 sibling: 0,
                 stack_mode: 0,
             };
-            XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight) as c_uint, &mut changes);
+            XConfigureWindow(self.display, window_id, (CWX | CWY | CWWidth | CWHeight | CWBorderWidth) as c_uint, &mut changes);
         }
     }
 

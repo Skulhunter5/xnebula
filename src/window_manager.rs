@@ -4,7 +4,7 @@ use x11::xlib::{ControlMask, CurrentTime, CWBorderWidth, CWHeight, CWWidth, CWX,
 use crate::action::{Action};
 use crate::config::{Config, Monitor};
 use crate::keybind::Keybind;
-use crate::layout::{Window, WindowTree};
+use crate::layout::{ChangedWindows, Window, WindowTree};
 use crate::util::{Bounds, Direction};
 
 extern "C" fn custom_error_handler(_display: *mut Display, error_event: *mut XErrorEvent) -> c_int {
@@ -269,7 +269,7 @@ impl WindowManager {
         }
     }
 
-    unsafe fn configure_changed_windows(&mut self, changed: Vec<(c_ulong, Bounds)>) {
+    unsafe fn configure_changed_windows(&mut self, changed: ChangedWindows) {
         for (window_id, bounds) in changed {
             let border_width = if let Some(border) = &self.config.border { border.width } else { 0 };
             let border_space = (border_width * 2) as c_int;

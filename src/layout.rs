@@ -3,6 +3,7 @@ use crate::util::Bounds;
 use crate::util::Direction;
 
 type NodeIndex = usize;
+pub type ChangedWindows = Vec<(c_ulong, Bounds)>;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub struct Window {
@@ -68,7 +69,7 @@ impl WindowTree {
         }
     }
 
-    pub fn insert(&mut self, new_window: Window) -> Vec<(c_ulong, Bounds)> {
+    pub fn insert(&mut self, new_window: Window) -> ChangedWindows {
         let mut changed = Vec::new();
         if self.root != None {
             let focused_index = self.get_focused_index().unwrap();
@@ -144,7 +145,7 @@ impl WindowTree {
         None
     }
 
-    pub fn remove_focused_window(&mut self) -> Option<(c_ulong, Option<c_ulong>, Vec<(c_ulong, Bounds)>)> {
+    pub fn remove_focused_window(&mut self) -> Option<(c_ulong, Option<c_ulong>, ChangedWindows)> {
         if let Some(root_index) = self.root {
             if let TreeNodeTy::Leaf { window } = self.get_node(root_index).ty {
                 let closed_window_id = window.id;
@@ -199,7 +200,7 @@ impl WindowTree {
         }
     }
 
-    pub fn resize_focused_window(&mut self, direction: Direction, amount: f32) -> Option<Vec<(c_ulong, Bounds)>> {
+    pub fn resize_focused_window(&mut self, direction: Direction, amount: f32) -> Option<ChangedWindows> {
         if self.root != None {
             let focused_index = self.get_focused_index().unwrap();
             let focused_node = self.get_node(focused_index);
@@ -232,7 +233,7 @@ impl WindowTree {
         None
     }
 
-    fn apply_bounds(&mut self, index: NodeIndex) -> Vec<(c_ulong, Bounds)> {
+    fn apply_bounds(&mut self, index: NodeIndex) -> ChangedWindows {
         let mut changed = Vec::new();
         let mut nodes = Vec::new();
         nodes.push(index);

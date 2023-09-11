@@ -144,14 +144,19 @@ impl WindowTree {
         None
     }
 
-    pub fn remove_focused_window(&mut self) -> (Option<c_ulong>, Vec<(c_ulong, Bounds)>) { // TODO: refactor return value
+    pub fn remove_focused_window(&mut self) -> Option<(c_ulong, Option<c_ulong>, Vec<(c_ulong, Bounds)>)> {
         if let Some(root_index) = self.root {
-            if let TreeNodeTy::Leaf { .. } = self.get_node(root_index).ty {
+            if let TreeNodeTy::Leaf { window } = self.get_node(root_index).ty {
+                let closed_window_id = window.id;
                 self.nodes[root_index] = None;
                 self.root = None;
-                return (None, Vec::new());
+                return Some((closed_window_id, None, Vec::new()));
             }
             let focused_node = self.get_focused_node().unwrap();
+            let mut closed_window_id = None;
+            if let TreeNodeTy::Leaf { window } = focused_node.ty {
+                closed_window_id = Some(window.id);
+            }
             let focused_index = focused_node.index;
             let parent_index = focused_node.parent.unwrap();
             let parent = self.get_node(parent_index);
@@ -178,22 +183,13 @@ impl WindowTree {
                 let changed = self.apply_bounds(other_index);
                 let focused_node = self.get_focused_node().unwrap();
                 if let TreeNodeTy::Leaf { window } = focused_node.ty {
-                    return (Some(window.id), changed);
-                } else {
-                    panic!("Focused node is not a leaf node.");
+                    if let Some(closed_window_id) = closed_window_id {
+                        return Some((closed_window_id, Some(window.id), changed));
+                    }
                 }
             }
         }
-        return (None, Vec::new());
-    }
-
-    pub fn get_focused_window_id(&self) -> Option<c_ulong> {
-        if let Some(node) = self.get_focused_node() {
-            if let TreeNodeTy::Leaf { window } = node.ty {
-                return Some(window.id);
-            }
-        }
-        None
+        return None;
     }
 
     pub fn change_tiling_direction(&mut self, direction: Direction) {
@@ -210,7 +206,7 @@ impl WindowTree {
             if focused_node.parent != None {
                 let mut node = self.get_node(focused_node.parent.unwrap());
                 loop {
-                    if node.direction.is_on_same_line(direction.clone()) {
+                    if node.direction.is_along_same_axis(direction.clone()) {
                         break;
                     }
                     if let Some(parent) = node.parent {

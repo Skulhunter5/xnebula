@@ -288,11 +288,10 @@ impl WindowManager {
     }
 
     pub unsafe fn close_focused_window(&mut self) {
-        if let Some(focused_id) = self.layout.get_focused_window_id() {
-            XKillClient(self.display, focused_id);
-            let (new_focus, changed) = self.layout.remove_focused_window();
-            if let Some(focused_id) = new_focus {
-                XSetInputFocus(self.display, focused_id, RevertToNone, CurrentTime);
+        if let Some((removed_window_id, new_focused_id, changed)) = self.layout.remove_focused_window() {
+            XKillClient(self.display, removed_window_id);
+            if let Some(new_focused_id) = new_focused_id {
+                XSetInputFocus(self.display, new_focused_id, RevertToNone, CurrentTime);
             }
             self.configure_changed_windows(changed);
         }

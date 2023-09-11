@@ -122,26 +122,4 @@ impl Bounds {
             }
         }
     }
-
-    /*
-    pub fn split(&self, side: Side) -> Self {
-        match side {
-            Side::Left => {
-                Self {
-                    x: self.x,
-                    y: self.y,
-                    width: self.width / 2,
-                    height: self.height,
-                }
-            }
-            Side::Right => {
-                Self {
-                    x: self.x + self.width / 2,
-                    y: self.y,
-                    width: self.width / 2,
-                    height: self.height,
-                }
-            }
-        }
-    }*/
 }

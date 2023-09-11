@@ -62,7 +62,7 @@ impl Bounds {
                 })
             },
             Direction::Left => {
-                let w1 = (self.width as f32 * proportions) as i32;
+                let w1 = (self.width as f32 * (1.0 - proportions)) as i32;
                 (Self {
                     x: self.x + w1,
                     y: self.y,
@@ -90,7 +90,7 @@ impl Bounds {
                 })
             },
             Direction::Up => {
-                let h1 = (self.height as f32 * proportions) as i32;
+                let h1 = (self.height as f32 * (1.0 - proportions)) as i32;
                 (Self {
                     x: self.x,
                     y: self.y + h1,

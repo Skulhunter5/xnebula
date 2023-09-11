@@ -45,7 +45,6 @@ impl Bounds {
         }
     }
 
-    // TODO: correct for integer division inaccuracies
     pub fn split(&self, direction: Direction) -> (Self, Self) {
         match direction {
             Direction::Right => (Self {

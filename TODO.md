@@ -8,7 +8,6 @@
 - Add multi-monitor support
 
 # Fixes
-- Correct for integer division inaccuracies in bounds
 - Don't insert a window when a XConfigureRequest comes in, do so when it's mapped
 - Figure out where the XIO error comes from
 - Keep working after closing the last window

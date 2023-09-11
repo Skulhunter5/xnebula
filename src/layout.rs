@@ -224,7 +224,12 @@ impl WindowTree {
                     } else {
                         -amount
                     };
-                    *proportions += amount;
+                    let new_proportions = *proportions + amount;
+                    if new_proportions >= 0.01 && new_proportions <= 0.99 {
+                        *proportions = new_proportions;
+                    } else {
+                        return None;
+                    }
                 }
                 let node_index = node.index;
                 return Some(self.apply_bounds(node_index));
